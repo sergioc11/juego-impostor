@@ -58,7 +58,7 @@
             <p id="roleDescription" class="text-xl opacity-80"></p>
         </div>
 
-        <button id="restartBtn" onclick="location.reload()"
+        <button id="restartBtn" onclick="triggerRestart()"
             class="hidden mt-8 text-sm text-slate-400 hover:text-white underline">
             Salir / Nueva Partida
         </button>
@@ -110,6 +110,14 @@
             }
         }
 
+        async function triggerRestart() {
+            try {
+                await connection.invoke("RestartGame");
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
         // Listeners
         connection.on("ReceiveJoinStatus", (isUserAdmin) => {
             isAdmin = isUserAdmin;
@@ -154,6 +162,10 @@
             if (isAdmin) {
                 document.getElementById('restartBtn').classList.remove('hidden');
             }
+        });
+
+        connection.on("ForceReload", () => {
+            location.reload();
         });
     </script>
 </body>

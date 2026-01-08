@@ -93,6 +93,19 @@ public class GameHub : Hub
             }
         }
     }
+
+    public async Task RestartGame()
+    {
+        if (_gameState.Players.TryGetValue(Context.ConnectionId, out var player) && player.IsAdmin)
+        {
+            // Reset game state on server if needed (though reload cleans up players mostly)
+            _gameState.Players.Clear(); 
+            _gameState.IsGameActive = false;
+            
+            // Tell everyone to reload their browser
+            await Clients.All.SendAsync("ForceReload");
+        }
+    }
     
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
