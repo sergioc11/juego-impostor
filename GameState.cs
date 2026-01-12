@@ -8,6 +8,9 @@ public class GameState
     public string CurrentTheme { get; set; } = string.Empty;
     public int ImpostorCount { get; set; }
     public bool IsGameActive { get; set; } = false;
+    
+    // Store used themes to avoid repetition
+    public HashSet<string> UsedThemes { get; } = new();
 
     public class Player
     {

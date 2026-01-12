@@ -21,6 +21,12 @@ public class GameHub : Hub
 
     public async Task JoinGame(string playerName)
     {
+        if (_gameState.IsGameActive)
+        {
+            await Clients.Caller.SendAsync("JoinError", "Juego en proceso. No puedes unirte en este momento.");
+            return;
+        }
+
         var player = new GameState.Player
         {
             ConnectionId = Context.ConnectionId,
@@ -42,7 +48,6 @@ public class GameHub : Hub
     {
         if (!_gameState.Players.TryGetValue(Context.ConnectionId, out var requestor) || !requestor.IsAdmin)
         {
-            // Optional: Notify that only admin can start
             return;
         }
 
@@ -51,10 +56,21 @@ public class GameHub : Hub
              // Not enough players logic could go here
         }
 
+        // Logic for random theme with history
         if (string.IsNullOrWhiteSpace(tema))
         {
+            var availableThemes = PredefinedThemes.Except(_gameState.UsedThemes).ToList();
+            
+            // If all themes used, clear history and use all
+            if (!availableThemes.Any())
+            {
+                _gameState.UsedThemes.Clear();
+                availableThemes = PredefinedThemes.ToList();
+            }
+
             var rngTheme = new Random();
-            tema = PredefinedThemes[rngTheme.Next(PredefinedThemes.Count)];
+            tema = availableThemes[rngTheme.Next(availableThemes.Count)];
+            _gameState.UsedThemes.Add(tema);
         }
 
         _gameState.CurrentTheme = tema;
@@ -76,31 +92,45 @@ public class GameHub : Hub
             }
             else
             {
-                shuffledPlayers[i].Role = "Civilian"; // Or "Townsperson"
+                shuffledPlayers[i].Role = "Civilian"; 
             }
         }
+
+        // Select Random Starter
+        var starterPlayer = playerList[rng.Next(playerList.Count)];
 
         // Notify each player individually
         foreach (var p in _gameState.Players.Values)
         {
             if (p.Role == "Impostor")
             {
-                await Clients.Client(p.ConnectionId).SendAsync("GameStarted", "Eres el IMPOSTOR", "???", "Impostor");
+                await Clients.Client(p.ConnectionId).SendAsync("GameStarted", "Eres el IMPOSTOR", "???", "Impostor", starterPlayer.Name);
             }
             else
             {
-                await Clients.Client(p.ConnectionId).SendAsync("GameStarted", $"Tema: {tema}", tema, "Civilian");
+                await Clients.Client(p.ConnectionId).SendAsync("GameStarted", $"Tema: {tema}", tema, "Civilian", starterPlayer.Name);
             }
         }
     }
 
-    public async Task RestartGame()
+    public async Task ResetGame()
     {
         if (_gameState.Players.TryGetValue(Context.ConnectionId, out var player) && player.IsAdmin)
         {
-            // Reset game state on server if needed (though reload cleans up players mostly)
+            _gameState.IsGameActive = false;
+            // Send everyone back to lobby, keep players
+            await Clients.All.SendAsync("BackToLobby");
+        }
+    }
+
+    public async Task EndGame()
+    {
+        if (_gameState.Players.TryGetValue(Context.ConnectionId, out var player) && player.IsAdmin)
+        {
+            // Reset game state on server
             _gameState.Players.Clear(); 
             _gameState.IsGameActive = false;
+            _gameState.UsedThemes.Clear();
             
             // Tell everyone to reload their browser
             await Clients.All.SendAsync("ForceReload");
